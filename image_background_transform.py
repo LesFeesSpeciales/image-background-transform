@@ -134,7 +134,7 @@ Mousewheel to select image"""
             context.area.header_text_set("Scale: %.4f" % offset + help_string)
 
     def modal(self, context, event):
-        elif event.type in ('MOUSEMOVE', 'LEFT_CTRL', 'RIGHT_CTRL', 'LEFT_SHIFT', 'LEFT_SHIFT'):
+        if event.type in ('MOUSEMOVE', 'LEFT_CTRL', 'RIGHT_CTRL', 'LEFT_SHIFT', 'LEFT_SHIFT'):
             self.update(context, event)
 
         elif event.type == 'X' and event.value == 'PRESS':
