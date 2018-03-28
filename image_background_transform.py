@@ -128,7 +128,7 @@ Mousewheel to select image"""
             if event.ctrl:
                 offset = ((offset*10) // 1) / 10
             if event.shift:
-                offset *= 0.1
+                offset = offset*0.5 + 0.5
 
             self.background_image.size = self._initial_size * offset
             context.area.header_text_set("Scale: %.4f" % offset + help_string)
