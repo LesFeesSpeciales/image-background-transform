@@ -35,7 +35,6 @@ from mathutils import Vector
 from bpy.props import FloatVectorProperty
 
 # TODO
-# wrap mouse
 # perspective
 # scale/rotate around 3D cursor
 # draw lines from pivot to mouse
@@ -91,7 +90,25 @@ Mousewheel to select image"""
         region = context.region
         rv3d = context.region_data
 
-        mouse_location_3d = view3d_utils.region_2d_to_location_3d(region, rv3d, Vector((event.mouse_region_x, event.mouse_region_y)), Vector())
+        region_position = Vector(
+            (event.mouse_region_x + self.region_offset_x*region.width,
+             event.mouse_region_y + self.region_offset_y*region.height))
+
+        if event.mouse_region_x > region.width:
+            self.region_offset_x += 1
+            bpy.context.window.cursor_warp(region.x, event.mouse_y)
+        elif event.mouse_region_x < 0:
+            self.region_offset_x -= 1
+            bpy.context.window.cursor_warp(region.x + region.width, event.mouse_y)
+        if event.mouse_region_y > region.height:
+            self.region_offset_y += 1
+            bpy.context.window.cursor_warp(event.mouse_x, region.y)
+        elif event.mouse_region_y < 0:
+            self.region_offset_y -= 1
+            bpy.context.window.cursor_warp(event.mouse_x, region.y + region.height)
+
+
+        mouse_location_3d = view3d_utils.region_2d_to_location_3d(region, rv3d, region_position, Vector())
 
         help_string = ', Confirm: (Enter/LMB), Cancel: (Esc/RMB), Choose Image : (Mousewheel), Move: (G), Rotate: (R), Scale: (S), Constrain to axes: (X/Y)'
 
@@ -204,6 +221,8 @@ Mousewheel to select image"""
         self.constrain_y = False
 
         self.camera_orientation = get_view_orientation_from_quaternion(rv3d.view_rotation)
+        self.region_offset_x = 0
+        self.region_offset_y = 0
 
         self._initial_mouse = Vector((event.mouse_region_x, event.mouse_region_y))
         self._initial_mouse_location_3d = view3d_utils.region_2d_to_location_3d(region, rv3d, self._initial_mouse, Vector())
