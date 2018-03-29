@@ -1,6 +1,6 @@
 # Copyright (C) 2018 Les Fees Speciales
 # voeu@les-fees-speciales.coop
-##
+#
 #  This program is free software; you can redistribute it and/or
 #  modify it under the terms of the GNU General Public License
 #  as published by the Free Software Foundation; either version 2
@@ -30,7 +30,7 @@ bl_info = {
 
 import bpy
 from bpy_extras import view3d_utils
-from math import radians, degrees, pi
+from math import radians, degrees, pi, cos, sin
 from mathutils import Vector
 from bpy.props import FloatVectorProperty
 
@@ -82,7 +82,7 @@ Mousewheel to select image"""
             and len(context.space_data.background_images))
 
     def reset(self):
-        self.background_image.offset_x, self.background_image.offset_y = self._initial_offset
+        self.background_image.offset_x, self.background_image.offset_y = self._initial_location
         self.background_image.rotation = self._initial_rotation
         self.background_image.size = self._initial_size
 
@@ -107,8 +107,13 @@ Mousewheel to select image"""
             self.region_offset_y -= 1
             bpy.context.window.cursor_warp(event.mouse_x, region.y + region.height)
 
-
         mouse_location_3d = view3d_utils.region_2d_to_location_3d(region, rv3d, region_position, Vector())
+        initial_mouse_location_2d = space_to_view_vector(self.camera_orientation, self._initial_mouse_location_3d)
+
+        if context.space_data.pivot_point == 'CURSOR':
+            pivot_point = space_to_view_vector(self.camera_orientation, context.space_data.cursor_location)
+        else:
+            pivot_point = self._initial_location
 
         help_string = ', Confirm: (Enter/LMB), Cancel: (Esc/RMB), Choose Image : (Mousewheel), Move: (G), Rotate: (R), Scale: (S), Constrain to axes: (X/Y)'
 
@@ -125,33 +130,44 @@ Mousewheel to select image"""
             if self.constrain_y:
                 offset.x = 0.0
 
-            self.background_image.offset_x, self.background_image.offset_y = self._initial_offset + offset
+            self.background_image.offset_x, self.background_image.offset_y = self._initial_location + offset
             context.area.header_text_set("Dx: %.4f Dy: %.4f" % tuple(offset) + help_string)
 
         elif self.mode == 'ROTATE':
-            offset = -(space_to_view_vector(self.camera_orientation, mouse_location_3d) - self._initial_offset).angle_signed(space_to_view_vector(self.camera_orientation, self._initial_mouse_location_3d) - self._initial_offset)
+            initial_mouse_vector = initial_mouse_location_2d - pivot_point
+            current_mouse_vector = space_to_view_vector(self.camera_orientation, mouse_location_3d) - pivot_point
+            rotation_offset = initial_mouse_vector.angle_signed(current_mouse_vector)
 
             if event.ctrl:
-                offset = radians((degrees(offset) // 5) * 5)
+                rotation_offset = radians((degrees(rotation_offset) // 5) * 5)
             if event.shift:
-                offset *= 0.1
+                rotation_offset *= 0.1
 
-            self.background_image.rotation = self._initial_rotation + offset
-            context.area.header_text_set("Rot: %.2f°" % degrees(offset) + help_string)
+            if (context.space_data.pivot_point == 'CURSOR'
+                    and (self._initial_location - pivot_point).length_squared != 0):
+                initial_angle = (self._initial_location - pivot_point).angle_signed(Vector((1.0, 0.0)))
+                rotation_distance = (pivot_point - self._initial_location).length
+                offset = pivot_point
+                offset.x += cos(initial_angle - rotation_offset) * rotation_distance
+                offset.y += sin(initial_angle - rotation_offset) * rotation_distance
+                self.background_image.offset_x, self.background_image.offset_y = offset
+
+            self.background_image.rotation = self._initial_rotation + rotation_offset
+            context.area.header_text_set("Rot: %.2f°" % degrees(rotation_offset) + help_string)
 
         elif self.mode == 'SCALE':
-            offset = (space_to_view_vector(self.camera_orientation, mouse_location_3d) - self._initial_offset).length / (space_to_view_vector(self.camera_orientation, self._initial_mouse_location_3d) - self._initial_offset).length
+            scale_offset = (space_to_view_vector(self.camera_orientation, mouse_location_3d) - pivot_point).length / (initial_mouse_location_2d - pivot_point).length
 
             if event.ctrl:
-                offset = ((offset*10) // 1) / 10
+                scale_offset = ((scale_offset * 10) // 1) / 10
             if event.shift:
-                offset = offset*0.5 + 0.5
+                scale_offset = scale_offset * 0.5 + 0.5
 
-            self.background_image.size = self._initial_size * offset
-            context.area.header_text_set("Scale: %.4f" % offset + help_string)
+            self.background_image.size = self._initial_size * scale_offset
+            context.area.header_text_set("Scale: %.4f" % scale_offset + help_string)
 
     def modal(self, context, event):
-        if event.type in ('MOUSEMOVE', 'LEFT_CTRL', 'RIGHT_CTRL', 'LEFT_SHIFT', 'LEFT_SHIFT'):
+        if event.type in ('MOUSEMOVE', 'LEFT_CTRL', 'RIGHT_CTRL', 'LEFT_SHIFT', 'RIGHT_SHIFT'):
             self.update(context, event)
 
         elif event.type == 'X' and event.value == 'PRESS':
@@ -208,7 +224,7 @@ Mousewheel to select image"""
     def init_image(self, background_image):
         self.background_image = background_image
         self.image_orientation = background_image.view_axis
-        self._initial_offset = Vector((self.background_image.offset_x, self.background_image.offset_y))
+        self._initial_location = Vector((self.background_image.offset_x, self.background_image.offset_y))
         self._initial_rotation = self.background_image.rotation
         self._initial_size = self.background_image.size
 
