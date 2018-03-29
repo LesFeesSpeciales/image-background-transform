@@ -30,44 +30,79 @@ bl_info = {
 
 import bpy
 from bpy_extras import view3d_utils
+from bpy.props import FloatVectorProperty
+import bgl
 from math import radians, degrees, pi, cos, sin
 from mathutils import Vector
-from bpy.props import FloatVectorProperty
 
 # TODO
 # perspective
 # scale/rotate around 3D cursor
-# draw lines from pivot to mouse
+
 
 def get_view_orientation_from_quaternion(view_quat):
     """From https://blender.stackexchange.com/a/3428/4979"""
-    r = lambda x: round(x, 3)
+    def r(x):
+        return round(x, 3)
     view_rot = view_quat.to_euler()
 
-    orientation_dict = {(0.0, 0.0, 0.0) : 'TOP',
-                        (r(pi), 0.0, 0.0) : 'BOTTOM',
-                        (r(pi/2), 0.0, 0.0) : 'FRONT',
-                        (r(pi/2), 0.0, r(pi)) : 'BACK',
-                        (r(pi/2), 0.0, r(-pi/2)) : 'LEFT',
-                        (r(pi/2), 0.0, r(pi/2)) : 'RIGHT'}
+    orientation_dict = {(0.0, 0.0, 0.0):          'TOP',
+                        (r(pi), 0.0, 0.0):        'BOTTOM',
+                        (r(pi/2), 0.0, 0.0):      'FRONT',
+                        (r(pi/2), 0.0, r(pi)):    'BACK',
+                        (r(pi/2), 0.0, r(-pi/2)): 'LEFT',
+                        (r(pi/2), 0.0, r(pi/2)):  'RIGHT'}
 
     return orientation_dict.get(tuple(map(r, view_rot)), 'UNDEFINED')
 
+
+AXIS_MAP = {
+    'TOP':    'xy',
+    'BOTTOM': 'xy',
+    'FRONT':  'xz',
+    'BACK':   'xz',
+    'LEFT':   'yz',
+    'RIGHT':  'yz',
+}
+
+
 def space_to_view_vector(view, vector):
-    axis_map = {
-                'TOP': 'xy',
-                'BOTTOM': 'xy',
-                'FRONT': 'xz',
-                'BACK': 'xz',
-                'LEFT': 'yz',
-                'RIGHT': 'yz',
-                }
-    vector = getattr(vector, axis_map[view])
+    vector = getattr(vector, AXIS_MAP[view])
     if view in {'BACK', 'LEFT'}:
         vector.x *= -1.0
     if view in {'BOTTOM'}:
         vector.y *= -1.0
     return vector
+
+
+def view_to_region_vector(region, rv3d, view, vector):
+    vector_3d = Vector()
+    setattr(vector_3d, AXIS_MAP[view], vector)
+    vector = view3d_utils.location_3d_to_region_2d(region, rv3d, vector_3d)
+    return vector
+
+
+def draw_callback_px(self, context):
+    if self.do_draw:
+        # 50% alpha, 2 pixel width line
+        bgl.glEnable(bgl.GL_BLEND)
+        bgl.glEnable(bgl.GL_LINE_STIPPLE)
+        bgl.glColor4f(0.0, 0.0, 0.0, 1.0)
+        bgl.glLineWidth(2)
+
+        bgl.glBegin(bgl.GL_LINE_STRIP)
+        bgl.glVertex2i(int(self.draw_start.x), int(self.draw_start.y))
+        bgl.glVertex2i(int(self.draw_end.x), int(self.draw_end.y))
+        # bgl.glVertex2i(500, 500)  # *self.draw_end)
+
+        bgl.glEnd()
+
+        # restore opengl defaults
+        bgl.glLineWidth(1)
+        bgl.glDisable(bgl.GL_BLEND)
+        bgl.glDisable(bgl.GL_LINE_STIPPLE)
+        bgl.glColor4f(0.0, 0.0, 0.0, 1.0)
+
 
 class BackgroundImageTransform(bpy.types.Operator):
     """Transform background image.
@@ -114,6 +149,7 @@ Mousewheel to select image"""
             pivot_point = space_to_view_vector(self.camera_orientation, context.space_data.cursor_location)
         else:
             pivot_point = self._initial_location
+        pivot_point_region = view_to_region_vector(region, rv3d, self.camera_orientation, pivot_point)
 
         help_string = ', Confirm: (Enter/LMB), Cancel: (Esc/RMB), Choose Image : (Mousewheel), Move: (G), Rotate: (R), Scale: (S), Constrain to axes: (X/Y)'
 
@@ -132,9 +168,10 @@ Mousewheel to select image"""
 
             self.background_image.offset_x, self.background_image.offset_y = self._initial_location + offset
             context.area.header_text_set("Dx: %.4f Dy: %.4f" % tuple(offset) + help_string)
+            self.do_draw = False
 
         elif self.mode == 'ROTATE':
-            initial_mouse_vector = initial_mouse_location_2d - pivot_point
+            initial_mouse_vector = self._initial_mouse - pivot_point
             current_mouse_vector = space_to_view_vector(self.camera_orientation, mouse_location_3d) - pivot_point
             rotation_offset = initial_mouse_vector.angle_signed(current_mouse_vector)
 
@@ -154,6 +191,9 @@ Mousewheel to select image"""
 
             self.background_image.rotation = self._initial_rotation + rotation_offset
             context.area.header_text_set("Rot: %.2f°" % degrees(rotation_offset) + help_string)
+            self.do_draw = True
+            self.draw_start = pivot_point_region
+            self.draw_end = region_position
 
         elif self.mode == 'SCALE':
             scale_offset = (space_to_view_vector(self.camera_orientation, mouse_location_3d) - pivot_point).length / (initial_mouse_location_2d - pivot_point).length
@@ -165,8 +205,12 @@ Mousewheel to select image"""
 
             self.background_image.size = self._initial_size * scale_offset
             context.area.header_text_set("Scale: %.4f" % scale_offset + help_string)
+            self.do_draw = True
+            self.draw_start = pivot_point_region
+            self.draw_end = region_position
 
     def modal(self, context, event):
+        context.area.tag_redraw()
         if event.type in ('MOUSEMOVE', 'LEFT_CTRL', 'RIGHT_CTRL', 'LEFT_SHIFT', 'RIGHT_SHIFT'):
             self.update(context, event)
 
@@ -211,12 +255,14 @@ Mousewheel to select image"""
 
         elif event.type in {'LEFTMOUSE', 'RET'}:
             context.area.header_text_set()
+            bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
             return {'FINISHED'}
 
         elif event.type in {'RIGHTMOUSE', 'ESC'}:
             self.reset()
 #            rv3d.view_location = self._initial_location
             context.area.header_text_set()
+            bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
             return {'CANCELLED'}
 
         return {'RUNNING_MODAL'}
@@ -254,6 +300,8 @@ Mousewheel to select image"""
             active_image = self.valid_images[0]
             self.init_image(active_image)
             context.window_manager.modal_handler_add(self)
+            args = (self, context)
+            self._handle = bpy.types.SpaceView3D.draw_handler_add(draw_callback_px, args, 'WINDOW', 'POST_PIXEL')
             return {'RUNNING_MODAL'}
         else:
             self.report({'WARNING'}, 'No background image found.')
