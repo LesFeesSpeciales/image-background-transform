@@ -37,6 +37,7 @@ from mathutils import Vector
 
 # TODO
 # perspective
+# fix rotation in precision mode
 # numeric input
 
 
@@ -135,7 +136,7 @@ Mousewheel to select image"""
             pivot_point = self._initial_location
         pivot_point_region = view_to_region_vector(region, rv3d, self.camera_orientation, pivot_point)
 
-        help_string = ', Confirm: (Enter/LMB), Cancel: (Esc/RMB), Choose Image : (Mousewheel), Move: (G), Rotate: (R), Scale: (S), Constrain to axes: (X/Y)'
+        help_string = ', Confirm: (Enter/LMB), Cancel: (Esc/RMB), Choose Image : (Mousewheel), Move: (G), Rotate: (R), Scale: (S), Constrain to axis: (X/Y)'
 
         if self.mode == 'TRANSLATE':
             offset = space_to_view_vector(self.camera_orientation, (mouse_location_3d - self._initial_mouse_location_3d))
