@@ -37,7 +37,7 @@ from mathutils import Vector
 
 # TODO
 # perspective
-# scale/rotate around 3D cursor
+# numeric input
 
 
 def get_view_orientation_from_quaternion(view_quat):
@@ -84,7 +84,6 @@ def view_to_region_vector(region, rv3d, view, vector):
 
 def draw_callback_px(self, context):
     if self.do_draw:
-        # 50% alpha, 2 pixel width line
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glEnable(bgl.GL_LINE_STIPPLE)
         bgl.glColor4f(0.0, 0.0, 0.0, 1.0)
@@ -93,7 +92,6 @@ def draw_callback_px(self, context):
         bgl.glBegin(bgl.GL_LINE_STRIP)
         bgl.glVertex2i(int(self.draw_start.x), int(self.draw_start.y))
         bgl.glVertex2i(int(self.draw_end.x), int(self.draw_end.y))
-        # bgl.glVertex2i(500, 500)  # *self.draw_end)
 
         bgl.glEnd()
 
@@ -110,6 +108,9 @@ Press G to move, R to rotate, S to scale.
 Mousewheel to select image"""
     bl_idname = "view3d.background_image_transform"
     bl_label = "Transform Background Image"
+    bl_options = {'REGISTER', 'UNDO', 'GRAB_CURSOR', 'BLOCKING'}
+
+    active_image = bpy.props.IntProperty(name="Active Image", min=0)
 
     @classmethod
     def poll(self, context):
@@ -125,24 +126,7 @@ Mousewheel to select image"""
         region = context.region
         rv3d = context.region_data
 
-        region_position = Vector(
-            (event.mouse_region_x + self.region_offset_x*region.width,
-             event.mouse_region_y + self.region_offset_y*region.height))
-
-        if event.mouse_region_x > region.width:
-            self.region_offset_x += 1
-            bpy.context.window.cursor_warp(region.x, event.mouse_y)
-        elif event.mouse_region_x < 0:
-            self.region_offset_x -= 1
-            bpy.context.window.cursor_warp(region.x + region.width, event.mouse_y)
-        if event.mouse_region_y > region.height:
-            self.region_offset_y += 1
-            bpy.context.window.cursor_warp(event.mouse_x, region.y)
-        elif event.mouse_region_y < 0:
-            self.region_offset_y -= 1
-            bpy.context.window.cursor_warp(event.mouse_x, region.y + region.height)
-
-        mouse_location_3d = view3d_utils.region_2d_to_location_3d(region, rv3d, region_position, Vector())
+        mouse_location_3d = view3d_utils.region_2d_to_location_3d(region, rv3d, (event.mouse_region_x, event.mouse_region_y), Vector())
         initial_mouse_location_2d = space_to_view_vector(self.camera_orientation, self._initial_mouse_location_3d)
 
         if context.space_data.pivot_point == 'CURSOR':
@@ -171,7 +155,7 @@ Mousewheel to select image"""
             self.do_draw = False
 
         elif self.mode == 'ROTATE':
-            initial_mouse_vector = self._initial_mouse - pivot_point
+            initial_mouse_vector = initial_mouse_location_2d - pivot_point
             current_mouse_vector = space_to_view_vector(self.camera_orientation, mouse_location_3d) - pivot_point
             rotation_offset = initial_mouse_vector.angle_signed(current_mouse_vector)
 
@@ -192,8 +176,6 @@ Mousewheel to select image"""
             self.background_image.rotation = self._initial_rotation + rotation_offset
             context.area.header_text_set("Rot: %.2f°" % degrees(rotation_offset) + help_string)
             self.do_draw = True
-            self.draw_start = pivot_point_region
-            self.draw_end = region_position
 
         elif self.mode == 'SCALE':
             scale_offset = (space_to_view_vector(self.camera_orientation, mouse_location_3d) - pivot_point).length / (initial_mouse_location_2d - pivot_point).length
@@ -203,11 +185,15 @@ Mousewheel to select image"""
             if event.shift:
                 scale_offset = scale_offset * 0.5 + 0.5
 
+            if context.space_data.pivot_point == 'CURSOR':
+                offset = self._initial_location + (pivot_point - self._initial_location) * (1-scale_offset)
+                self.background_image.offset_x, self.background_image.offset_y = offset
+
             self.background_image.size = self._initial_size * scale_offset
             context.area.header_text_set("Scale: %.4f" % scale_offset + help_string)
             self.do_draw = True
-            self.draw_start = pivot_point_region
-            self.draw_end = region_position
+        self.draw_start = pivot_point_region
+        self.draw_end = Vector((event.mouse_region_x, event.mouse_region_y))
 
     def modal(self, context, event):
         context.area.tag_redraw()
@@ -238,20 +224,21 @@ Mousewheel to select image"""
 
         elif event.type == 'WHEELUPMOUSE':
             self.reset()
-            image_index = self.valid_images.index(self.background_image)
-            image_index += 1
-            if image_index > len(self.valid_images) - 1:
-                image_index = 0
-            self.init_image(self.valid_images[image_index])
+            self.active_image += 1
+            if self.active_image > len(self.valid_images) - 1:
+                self.active_image = 0
+            self.init_image(self.valid_images[self.active_image])
             self.update(context, event)
+            print(self.active_image)
         elif event.type == 'WHEELDOWNMOUSE':
             self.reset()
-            image_index = self.valid_images.index(self.background_image)
-            image_index -= 1
-            if image_index < 0:
-                image_index = len(self.valid_images) - 1
-            self.init_image(self.valid_images[image_index])
+            previous = self.active_image
+            self.active_image -= 1
+            if previous == 0:
+                self.active_image = len(self.valid_images) - 1
+            self.init_image(self.valid_images[self.active_image])
             self.update(context, event)
+            print(self.active_image)
 
         elif event.type in {'LEFTMOUSE', 'RET'}:
             context.area.header_text_set()
@@ -260,7 +247,6 @@ Mousewheel to select image"""
 
         elif event.type in {'RIGHTMOUSE', 'ESC'}:
             self.reset()
-#            rv3d.view_location = self._initial_location
             context.area.header_text_set()
             bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
             return {'CANCELLED'}
@@ -297,10 +283,11 @@ Mousewheel to select image"""
                 self.valid_images.append(background_image)
 
         if len(self.valid_images):
-            active_image = self.valid_images[0]
-            self.init_image(active_image)
+            self.active_image = min(self.active_image, len(self.valid_images))
+            self.init_image(self.valid_images[self.active_image])
             context.window_manager.modal_handler_add(self)
             args = (self, context)
+            self.do_draw = False
             self._handle = bpy.types.SpaceView3D.draw_handler_add(draw_callback_px, args, 'WINDOW', 'POST_PIXEL')
             return {'RUNNING_MODAL'}
         else:
