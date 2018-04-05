@@ -68,6 +68,7 @@ AXIS_MAP = {
 
 
 def space_to_view_vector(view, vector):
+    """Transform a 3D world vector to ortho view space."""
     vector = getattr(vector, AXIS_MAP[view])
     if view in {'BACK', 'LEFT'}:
         vector.x *= -1.0
@@ -77,6 +78,7 @@ def space_to_view_vector(view, vector):
 
 
 def view_to_region_vector(region, rv3d, view, vector):
+    """Transform an ortho view vector to region space."""
     vector_3d = Vector()
     setattr(vector_3d, AXIS_MAP[view], vector)
     vector = view3d_utils.location_3d_to_region_2d(region, rv3d, vector_3d)
@@ -84,6 +86,7 @@ def view_to_region_vector(region, rv3d, view, vector):
 
 
 def draw_callback_px(self, context):
+    """From blender's operator_modal_draw.py modal operator template"""
     if self.do_draw:
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glEnable(bgl.GL_LINE_STIPPLE)
@@ -119,17 +122,20 @@ Mousewheel to select image"""
             and len(context.space_data.background_images))
 
     def reset(self):
+        """Set current background image's transform to stored values"""
         self.background_image.offset_x, self.background_image.offset_y = self._initial_location
         self.background_image.rotation = self._initial_rotation
         self.background_image.size = self._initial_size
 
     def update(self, context, event):
+        """Update transforms on each update"""
         region = context.region
         rv3d = context.region_data
 
         mouse_location_3d = view3d_utils.region_2d_to_location_3d(region, rv3d, (event.mouse_region_x, event.mouse_region_y), Vector())
         initial_mouse_location_2d = space_to_view_vector(self.camera_orientation, self._initial_mouse_location_3d)
 
+        # Get pivot type from space properties
         if context.space_data.pivot_point == 'CURSOR':
             pivot_point = space_to_view_vector(self.camera_orientation, context.space_data.cursor_location)
         else:
@@ -139,32 +145,42 @@ Mousewheel to select image"""
         help_string = ', Confirm: (Enter/LMB), Cancel: (Esc/RMB), Choose Image : (Mousewheel), Move: (G), Rotate: (R), Scale: (S), Constrain to axis: (X/Y)'
 
         if self.mode == 'TRANSLATE':
+            # Get mouse differential in view space
             offset = space_to_view_vector(self.camera_orientation, (mouse_location_3d - self._initial_mouse_location_3d))
+            # Snap mode
             if event.ctrl:
                 offset.x //= 1
                 offset.y //= 1
+            # Precision mode
             if event.shift:
                 offset *= 0.1
 
+            # Axis constraint
             if self.constrain_x:
                 offset.y = 0.0
             if self.constrain_y:
                 offset.x = 0.0
 
+            # Apply translation to background image
             self.background_image.offset_x, self.background_image.offset_y = self._initial_location + offset
             context.area.header_text_set("Dx: %.4f Dy: %.4f" % tuple(offset) + help_string)
+            # Do not draw stitched line in translation mode
             self.do_draw = False
 
         elif self.mode == 'ROTATE':
+            # Get angles in view space
             initial_mouse_vector = initial_mouse_location_2d - pivot_point
             current_mouse_vector = space_to_view_vector(self.camera_orientation, mouse_location_3d) - pivot_point
             rotation_offset = initial_mouse_vector.angle_signed(current_mouse_vector)
 
+            # Snap mode
             if event.ctrl:
                 rotation_offset = radians((degrees(rotation_offset) // 5) * 5)
+            # Precision mode
             if event.shift:
                 rotation_offset *= 0.1
 
+            # Translate image in a circular path around 3D cursor
             if (context.space_data.pivot_point == 'CURSOR'
                     and (self._initial_location - pivot_point).length_squared != 0):
                 initial_angle = (self._initial_location - pivot_point).angle_signed(Vector((1.0, 0.0)))
@@ -174,6 +190,7 @@ Mousewheel to select image"""
                 offset.y += sin(initial_angle - rotation_offset) * rotation_distance
                 self.background_image.offset_x, self.background_image.offset_y = offset
 
+            # Apply rotation to background image
             self.background_image.rotation = self._initial_rotation + rotation_offset
             context.area.header_text_set("Rot: %.2f°" % degrees(rotation_offset) + help_string)
             self.do_draw = True
@@ -181,19 +198,26 @@ Mousewheel to select image"""
         elif self.mode == 'SCALE':
             scale_offset = (space_to_view_vector(self.camera_orientation, mouse_location_3d) - pivot_point).length / (initial_mouse_location_2d - pivot_point).length
 
+            # Snap mode
             if event.ctrl:
                 scale_offset = ((scale_offset * 10) // 1) / 10
+            # Precision mode
             if event.shift:
                 scale_offset = scale_offset * 0.5 + 0.5
 
+            # Translate image along a line between 3D cursor and original location
             if context.space_data.pivot_point == 'CURSOR':
                 offset = self._initial_location + (pivot_point - self._initial_location) * (1-scale_offset)
                 self.background_image.offset_x, self.background_image.offset_y = offset
 
+            # Apply scale to background image
             self.background_image.size = self._initial_size * scale_offset
             context.area.header_text_set("Scale: %.4f" % scale_offset + help_string)
             self.do_draw = True
+
+        # Draw line from the pivot point (image center or 3D cursor)...
         self.draw_start = pivot_point_region
+        # ...to the mouse cursor
         self.draw_end = Vector((event.mouse_region_x, event.mouse_region_y))
 
     def modal(self, context, event):
@@ -201,6 +225,7 @@ Mousewheel to select image"""
         if event.type in ('MOUSEMOVE', 'LEFT_CTRL', 'RIGHT_CTRL', 'LEFT_SHIFT', 'RIGHT_SHIFT'):
             self.update(context, event)
 
+        # Axis constraint events
         elif event.type == 'X' and event.value == 'PRESS':
             self.constrain_y = False
             self.constrain_x = not self.constrain_x
@@ -210,6 +235,7 @@ Mousewheel to select image"""
             self.constrain_y = not self.constrain_y
             self.update(context, event)
 
+        # Mode switch events
         elif event.type == 'R' and event.value == 'PRESS':
             self.mode = 'ROTATE'
             self.reset()
@@ -223,6 +249,7 @@ Mousewheel to select image"""
             self.reset()
             self.update(context, event)
 
+        # Image selection events : iterate through image list
         elif event.type == 'WHEELUPMOUSE':
             self.reset()
             self.active_image += 1
@@ -230,7 +257,6 @@ Mousewheel to select image"""
                 self.active_image = 0
             self.init_image(self.valid_images[self.active_image])
             self.update(context, event)
-            print(self.active_image)
         elif event.type == 'WHEELDOWNMOUSE':
             self.reset()
             previous = self.active_image
@@ -239,13 +265,14 @@ Mousewheel to select image"""
                 self.active_image = len(self.valid_images) - 1
             self.init_image(self.valid_images[self.active_image])
             self.update(context, event)
-            print(self.active_image)
 
+        # Confirm and apply
         elif event.type in {'LEFTMOUSE', 'RET'}:
             context.area.header_text_set()
             bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
             return {'FINISHED'}
 
+        # Cancel and reset
         elif event.type in {'RIGHTMOUSE', 'ESC'}:
             self.reset()
             context.area.header_text_set()
