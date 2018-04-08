@@ -192,6 +192,7 @@ Mousewheel to select image"""
                 offset = pivot_point
                 offset.x += cos(initial_angle - rotation_offset) * rotation_distance
                 offset.y += sin(initial_angle - rotation_offset) * rotation_distance
+                offset.y *= self.width / self.height
                 self.background_image.offset_x, self.background_image.offset_y = offset
 
             # Apply rotation to background image
@@ -212,6 +213,7 @@ Mousewheel to select image"""
             # Translate image along a line between 3D cursor and original location
             if context.space_data.pivot_point == 'CURSOR':
                 offset = self._initial_location + (pivot_point - self._initial_location) * (1-scale_offset)
+                offset.y *= self.width / self.height
                 self.background_image.offset_x, self.background_image.offset_y = offset
 
             # Apply scale to background image
