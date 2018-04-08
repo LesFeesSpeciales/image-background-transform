@@ -168,8 +168,6 @@ Mousewheel to select image"""
             # Apply translation to background image
             self.background_image.offset_x, self.background_image.offset_y = self._initial_location + offset
             context.area.header_text_set("Dx: %.4f Dy: %.4f" % tuple(offset) + help_string)
-            # Do not draw stitched line in translation mode
-            self.do_draw = False
 
         elif self.mode == 'ROTATE':
             # Get angles in view space
@@ -198,7 +196,6 @@ Mousewheel to select image"""
             # Apply rotation to background image
             self.background_image.rotation = self._initial_rotation + rotation_offset
             context.area.header_text_set("Rot: %.2f°" % degrees(rotation_offset) + help_string)
-            self.do_draw = True
 
         elif self.mode == 'SCALE':
             scale_offset = (space_to_view_vector(self.camera_orientation, mouse_location_3d) - pivot_point).length / (initial_mouse_location_2d - pivot_point).length
@@ -219,7 +216,6 @@ Mousewheel to select image"""
             # Apply scale to background image
             self.background_image.size = self._initial_size * scale_offset
             context.area.header_text_set("Scale: %.4f" % scale_offset + help_string)
-            self.do_draw = True
 
         # Draw line from the pivot point (image center or 3D cursor)...
         self.draw_start = pivot_point_region
@@ -246,14 +242,18 @@ Mousewheel to select image"""
             self.mode = 'ROTATE'
             self.reset()
             self.update(context, event)
+            self.do_draw = True
         elif event.type == 'G' and event.value == 'PRESS':
             self.mode = 'TRANSLATE'
             self.reset()
             self.update(context, event)
+            # Do not draw stitched line in translation mode
+            self.do_draw = False
         elif event.type == 'S' and event.value == 'PRESS':
             self.mode = 'SCALE'
             self.reset()
             self.update(context, event)
+            self.do_draw = True
 
         # Image selection events : iterate through image list
         elif event.type == 'WHEELUPMOUSE':
