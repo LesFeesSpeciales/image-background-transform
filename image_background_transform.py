@@ -37,8 +37,8 @@ from mathutils import Vector
 
 # TODO
 # perspective
-# fix rotation in precision mode
 # numeric input
+# transform all visible images
 
 
 def get_view_orientation_from_quaternion(view_quat):
@@ -174,6 +174,19 @@ Mousewheel to select image"""
             initial_mouse_vector = initial_mouse_location_2d - pivot_point
             current_mouse_vector = space_to_view_vector(self.camera_orientation, mouse_location_3d) - pivot_point
             rotation_offset = initial_mouse_vector.angle_signed(current_mouse_vector)
+
+            # Add whole turns to avoid precision mode popping
+            if (self.previous_rotation_offset < 0
+                    and rotation_offset > 0
+                    and abs(rotation_offset) > pi/2):
+                self.revolutions -= 1
+            elif (self.previous_rotation_offset > 0
+                    and rotation_offset < 0
+                    and abs(rotation_offset) > pi/2):
+                self.revolutions += 1
+
+            self.previous_rotation_offset = rotation_offset
+            rotation_offset += self.revolutions * 2*pi
 
             # Snap mode
             if event.ctrl:
@@ -311,6 +324,8 @@ Mousewheel to select image"""
         self._initial_mouse_location_3d = view3d_utils.region_2d_to_location_3d(region, rv3d, self._initial_mouse, Vector())
 
         self.valid_images = []
+        self.previous_rotation_offset = 0.0
+        self.revolutions = 0
 
         for background_image in context.space_data.background_images:
             image_orientation = background_image.view_axis
