@@ -147,6 +147,10 @@ Mousewheel to select image"""
         if self.mode == 'TRANSLATE':
             # Get mouse differential in view space
             offset = space_to_view_vector(self.camera_orientation, (mouse_location_3d - self._initial_mouse_location_3d))
+
+            # Offset is based a factor of width or height
+            offset.y *= self.width / self.height
+
             # Snap mode
             if event.ctrl:
                 offset.x //= 1
@@ -287,6 +291,7 @@ Mousewheel to select image"""
         self._initial_location = Vector((self.background_image.offset_x, self.background_image.offset_y))
         self._initial_rotation = self.background_image.rotation
         self._initial_size = self.background_image.size
+        self.width, self.height = self.background_image.image.size
 
     def invoke(self, context, event):
         rv3d = context.region_data
