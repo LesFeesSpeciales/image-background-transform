@@ -40,7 +40,6 @@ from mathutils import Vector
 # numeric input
 # transform all visible images
 
-
 def get_view_orientation_from_quaternion(view_quat):
     """From https://blender.stackexchange.com/a/3428/4979"""
     def r(x):
@@ -106,6 +105,9 @@ def draw_callback_px(self, context):
         bgl.glColor4f(0.0, 0.0, 0.0, 1.0)
 
 
+persistent_settings = {'active_image': 0}
+
+
 class BackgroundImageTransform(bpy.types.Operator):
     """Transform background image.
 Press G to move, R to rotate, S to scale.
@@ -114,7 +116,7 @@ Mousewheel to select image"""
     bl_label = "Transform Background Image"
     bl_options = {'REGISTER', 'UNDO', 'GRAB_CURSOR', 'BLOCKING'}
 
-    active_image = bpy.props.IntProperty(name="Active Image", min=0)
+    # active_image = bpy.props.IntProperty(name="Active Image", min=0)
 
     @classmethod
     def poll(self, context):
@@ -289,6 +291,7 @@ Mousewheel to select image"""
         elif event.type in {'LEFTMOUSE', 'RET'}:
             context.area.header_text_set()
             bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
+            persistent_settings['active_image'] = self.active_image
             return {'FINISHED'}
 
         # Cancel and reset
@@ -333,7 +336,7 @@ Mousewheel to select image"""
                 self.valid_images.append(background_image)
 
         if len(self.valid_images):
-            self.active_image = min(self.active_image, len(self.valid_images))
+            self.active_image = min(persistent_settings['active_image'], len(self.valid_images)-1)
             self.init_image(self.valid_images[self.active_image])
             context.window_manager.modal_handler_add(self)
             args = (self, context)
