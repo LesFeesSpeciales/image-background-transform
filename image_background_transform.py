@@ -141,8 +141,10 @@ Mousewheel to select image"""
         if context.space_data.pivot_point == 'CURSOR':
             pivot_point = space_to_view_vector(self.camera_orientation, context.space_data.cursor_location)
         else:
-            pivot_point = self._initial_location
+            pivot_point = self._initial_location_view
         pivot_point_region = view_to_region_vector(region, rv3d, self.camera_orientation, pivot_point)
+        pivot_point_image = pivot_point.copy()
+        pivot_point_image.y *= self.width / self.height
 
         help_string = ', Confirm: (Enter/LMB), Cancel: (Esc/RMB), Choose Image : (Mousewheel), Move: (G), Rotate: (R), Scale: (S), Constrain to axis: (X/Y)'
 
@@ -199,13 +201,12 @@ Mousewheel to select image"""
 
             # Translate image in a circular path around 3D cursor
             if (context.space_data.pivot_point == 'CURSOR'
-                    and (self._initial_location - pivot_point).length_squared != 0):
-                initial_angle = (self._initial_location - pivot_point).angle_signed(Vector((1.0, 0.0)))
-                rotation_distance = (pivot_point - self._initial_location).length
-                offset = pivot_point
+                    and (self._initial_location_view - pivot_point).length_squared != 0):
+                initial_angle = (self._initial_location_view - pivot_point).angle_signed(Vector((1.0, 0.0)))
+                rotation_distance = (pivot_point - self._initial_location_view).length
+                offset = pivot_point_image
                 offset.x += cos(initial_angle - rotation_offset) * rotation_distance
-                offset.y += sin(initial_angle - rotation_offset) * rotation_distance
-                offset.y *= self.width / self.height
+                offset.y += sin(initial_angle - rotation_offset) * rotation_distance * self.width /  self.height
                 self.background_image.offset_x, self.background_image.offset_y = offset
 
             # Apply rotation to background image
@@ -224,7 +225,7 @@ Mousewheel to select image"""
 
             # Translate image along a line between 3D cursor and original location
             if context.space_data.pivot_point == 'CURSOR':
-                offset = self._initial_location + (pivot_point - self._initial_location) * (1-scale_offset)
+                offset = self._initial_location_view + (pivot_point - self._initial_location_view) * (1-scale_offset)
                 offset.y *= self.width / self.height
                 self.background_image.offset_x, self.background_image.offset_y = offset
 
@@ -306,10 +307,12 @@ Mousewheel to select image"""
     def init_image(self, background_image):
         self.background_image = background_image
         self.image_orientation = background_image.view_axis
+        self.width, self.height = self.background_image.image.size
         self._initial_location = Vector((self.background_image.offset_x, self.background_image.offset_y))
+        self._initial_location_view = self._initial_location.copy()
+        self._initial_location_view.y *= self.height / self.width
         self._initial_rotation = self.background_image.rotation
         self._initial_size = self.background_image.size
-        self.width, self.height = self.background_image.image.size
 
     def invoke(self, context, event):
         rv3d = context.region_data
