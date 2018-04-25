@@ -41,7 +41,8 @@ from mathutils import Vector
 
 
 persistent_settings = {'active_image': 0,
-                       'transform_all': False}
+                       'transform_all': False,
+                       'mode': 'TRANSLATE'}
 
 def get_view_orientation_from_quaternion(view_quat):
     """From https://blender.stackexchange.com/a/3428/4979"""
@@ -97,7 +98,7 @@ def draw_callback_px(self, context):
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glEnable(bgl.GL_LINE_STIPPLE)
         bgl.glColor4f(0.0, 0.0, 0.0, 1.0)
-        bgl.glLineWidth(2)
+        bgl.glLineWidth(1)
 
         bgl.glBegin(bgl.GL_LINE_STRIP)
         bgl.glVertex2i(int(self.draw_start.x), int(self.draw_start.y))
@@ -328,6 +329,7 @@ Mousewheel to select image"""
             bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
             persistent_settings['active_image'] = self.active_image
             persistent_settings['transform_all'] = self.transform_all
+            persistent_settings['mode'] = self.mode
             return {'FINISHED'}
 
         # Cancel and reset
@@ -359,7 +361,7 @@ Mousewheel to select image"""
         rv3d = context.region_data
         region = context.region
 
-        self.mode = "TRANSLATE"
+        self.mode = persistent_settings['mode']
         self.transform_all = persistent_settings['transform_all']
         self.constrain_x = False
         self.constrain_y = False
@@ -388,7 +390,7 @@ Mousewheel to select image"""
             self.init_images(self.valid_images)
             context.window_manager.modal_handler_add(self)
             args = (self, context)
-            self.do_draw = False
+            self.do_draw = self.mode in ('ROTATE', 'SCALE')
             self._handle = bpy.types.SpaceView3D.draw_handler_add(draw_callback_px, args, 'WINDOW', 'POST_PIXEL')
             return {'RUNNING_MODAL'}
         else:
