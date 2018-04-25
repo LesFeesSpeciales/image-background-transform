@@ -382,7 +382,10 @@ Mousewheel to select image"""
         # Get currently visible images
         for background_image in context.space_data.background_images:
             image_orientation = background_image.view_axis
-            if background_image.show_background_image and self.camera_orientation != 'UNDEFINED' and image_orientation in {self.camera_orientation, 'ALL'}:
+            if (background_image.show_background_image
+                    and self.camera_orientation != 'UNDEFINED'
+                    and image_orientation in {self.camera_orientation, 'ALL'}
+                    and background_image.image is not None):
                 self.valid_images.append(background_image)
 
         if len(self.valid_images):
