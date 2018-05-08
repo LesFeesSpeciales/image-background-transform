@@ -60,12 +60,13 @@ def get_view_orientation_from_quaternion(view_quat):
 
 
 AXIS_MAP = {
-    'TOP':    'xy',
-    'BOTTOM': 'xy',
-    'FRONT':  'xz',
-    'BACK':   'xz',
-    'LEFT':   'yz',
-    'RIGHT':  'yz',
+    'TOP':       'xy',
+    'BOTTOM':    'xy',
+    'FRONT':     'xz',
+    'BACK':      'xz',
+    'LEFT':      'yz',
+    'RIGHT':     'yz',
+    'UNDEFINED': 'xy',
 }
 
 
@@ -126,7 +127,7 @@ Mousewheel to select image"""
                 and len(context.space_data.background_images))
 
     def reset(self):
-        """Set current background image's transform to stored values"""
+        """Set background images' data to stored values"""
         for i_d in self.background_images:
             image = i_d['image']
             image.offset_x, image.offset_y = i_d['initial_location']
@@ -135,6 +136,24 @@ Mousewheel to select image"""
 
             image.use_flip_x = i_d['initial_flip_x']
             image.use_flip_y = i_d['initial_flip_y']
+
+    def get_pivot_point(self, context, images):
+        """ Get pivot type from space properties"""
+        if context.space_data.pivot_point == 'CURSOR':
+            pivot_point = (
+                space_to_view_vector(
+                    self.camera_orientation,
+                    context.space_data.cursor_location))
+        elif context.space_data.pivot_point in ('BOUNDING_BOX_CENTER',
+                                                'MEDIAN_POINT',
+                                                'INDIVIDUAL_ORIGINS'):
+            pivot_point = Vector((0.0, 0.0))
+            for i_d in images:
+                pivot_point += i_d['initial_location_view']
+            pivot_point /= len(images)
+        elif context.space_data.pivot_point == 'ACTIVE_ELEMENT':
+            pivot_point = self.background_images[self.active_image]['initial_location_view'].copy()
+        return pivot_point
 
     def update(self, context, event):
         """Update transforms on each call"""
@@ -157,27 +176,21 @@ Mousewheel to select image"""
         else:
             images = (self.background_images[self.active_image],)
 
-        # Get pivot type from space properties
-        if context.space_data.pivot_point == 'CURSOR':
-            pivot_point = (
-                space_to_view_vector(
-                    self.camera_orientation,
-                    context.space_data.cursor_location))
-        elif context.space_data.pivot_point in ('BOUNDING_BOX_CENTER',
-                                                'MEDIAN_POINT',
-                                                'INDIVIDUAL_ORIGINS'):
-            pivot_point = Vector((0.0, 0.0))
-            for i_d in images:
-                pivot_point += i_d['initial_location_view']
-            pivot_point /= len(images)
-        elif context.space_data.pivot_point == 'ACTIVE_ELEMENT':
-            pivot_point = self.background_images[self.active_image]['initial_location_view'].copy()
+        pivot_point = self.get_pivot_point(context, images)
 
         for i_i, i_d in enumerate(images):
             pivot_point_image = pivot_point.copy()
             pivot_point_image.y *= i_d['width'] / i_d['height']
 
-            help_string = ', Confirm: (Enter/LMB), Cancel: (Esc/RMB), Choose Image: (Mousewheel), Transform All: (A), Move: (G), Rotate: (R), Scale: (S), Constrain to axis: (X/Y)'
+            help_string  = ', Confirm: (Enter/LMB)'
+            help_string += ', Cancel: (Esc/RMB)'
+            help_string += ', Choose Image: (Mousewheel)'
+            help_string += ', Transform All: (A)'
+            help_string += ', Move: (G)'
+            help_string += ', Rotate: (R)'
+            if self.view_perspective == 'ORTHO':
+                help_string += ', Scale: (S)'
+            help_string += ', Constrain to axis: (X/Y)'
 
             initial_mouse_vector = initial_mouse_location_2d - pivot_point
             current_mouse_vector = space_to_view_vector(
@@ -354,7 +367,10 @@ Mousewheel to select image"""
             self.update(context, event)
             # Do not draw stitched line in translation mode
             self.do_draw = False
-        elif event.type == 'S' and event.value == 'PRESS':
+        elif (
+                event.type == 'S'
+                and event.value == 'PRESS'
+                and self.view_perspective == 'ORTHO'):
             self.mode = 'SCALE'
             self.reset()
             self.update(context, event)
@@ -423,6 +439,11 @@ Mousewheel to select image"""
         self.constrain_x = False
         self.constrain_y = False
 
+        if rv3d.view_perspective == 'PERSP':
+            self.report({'WARNING'}, 'Perspective camera unsupported.')
+            return {'CANCELLED'}
+
+        self.view_perspective = rv3d.view_perspective
         self.camera_orientation = (
             get_view_orientation_from_quaternion(rv3d.view_rotation))
         self.region_offset_x = 0
@@ -445,9 +466,13 @@ Mousewheel to select image"""
         for background_image in context.space_data.background_images:
             image_orientation = background_image.view_axis
             if (background_image.show_background_image
-                    and self.camera_orientation != 'UNDEFINED'
-                    and image_orientation in {self.camera_orientation, 'ALL'}
-                    and background_image.image is not None):
+                and background_image.image is not None
+                and (rv3d.view_perspective == 'CAMERA'
+                     and image_orientation in {'CAMERA', 'ALL'}
+                     or rv3d.view_perspective == 'ORTHO'
+                     and self.camera_orientation != 'UNDEFINED'
+                     and image_orientation in {self.camera_orientation, 'ALL'}
+                     )):
                 self.valid_images.append(background_image)
 
         if len(self.valid_images):
