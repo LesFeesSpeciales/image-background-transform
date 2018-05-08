@@ -288,6 +288,8 @@ Mousewheel to select image"""
                 # to the pivot-initial mouse line)
                 mouse_cross_product = (
                     initial_mouse_vector * current_mouse_vector)
+                # Cross products have the different signs
+                # From https://stackoverflow.com/a/1986776/4561348
                 if (copysign(1, mouse_cross_product)
                         != copysign(1, self.previous_mouse_cp)):
                     i_d['image'].use_flip_x = not i_d['image'].use_flip_x
