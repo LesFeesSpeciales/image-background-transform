@@ -21,10 +21,8 @@ bl_info = {
     "author": "Les Fees Speciales",
     "version": (1, 0),
     "blender": (2, 79, 0),
-    "location": "View3D > Toolbar > Background Image > Transform Background Image",
+    "location": "View3D > Properties Panel > Background Image > Transform Background Image",
     "description": "Move, rotate and scale background images interactively.",
-    "warning": "",
-    "wiki_url": "",
     "category": "3D View",
     }
 
