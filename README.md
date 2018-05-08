@@ -11,8 +11,11 @@ Note that the pivot mode (3D Cursor, Individual Origins, etc.) is considered dur
 
 ![Background image transform](https://raw.githubusercontent.com/LesFeesSpeciales/blender-scripts-docs/master/BG_xform_edit.gif "Background image transform")  
 
+### Known issues
+* The transforms don't work properly in Camera view.
+
 -----
 
-# License
+## License
 
 Blender scripts shared by **Les Fées Spéciales** are, except where otherwise noted, licensed under the GPLv2 license.
