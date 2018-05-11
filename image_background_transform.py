@@ -462,6 +462,9 @@ Mousewheel to select image"""
 
         self.previous_mouse_cp = 1.0
 
+        self.draw_start = self.initial_mouse
+        self.draw_end = self.initial_mouse
+
         # Get currently visible images
         for background_image in context.space_data.background_images:
             image_orientation = background_image.view_axis
