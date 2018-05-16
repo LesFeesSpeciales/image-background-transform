@@ -443,6 +443,8 @@ Mousewheel to select image"""
         # Numeric input selection events
         elif event.type in EVENT_DIGITS and event.value == 'PRESS':
             self.numeric_input_string += EVENT_DIGITS[event.type]
+            if self.numeric_input_string.count('.') > 1:
+                self.numeric_input_string = self.numeric_input_string[:-1]
             self.update(context, event)
         elif event.type == 'BACK_SPACE' and event.value == 'PRESS':
             self.numeric_input_string = self.numeric_input_string[:-1]
