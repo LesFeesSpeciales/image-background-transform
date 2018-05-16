@@ -369,12 +369,14 @@ Mousewheel to select image"""
             self.do_draw = False
         elif (
                 event.type == 'S'
-                and event.value == 'PRESS'
-                and self.view_perspective == 'ORTHO'):
-            self.mode = 'SCALE'
-            self.reset()
-            self.update(context, event)
-            self.do_draw = True
+                and event.value == 'PRESS'):
+            if self.view_perspective == 'ORTHO':
+                self.mode = 'SCALE'
+                self.reset()
+                self.update(context, event)
+                self.do_draw = True
+            else:
+                self.report({'WARNING'}, 'Scaling unsupported in camera view.')
 
         # Image selection events : iterate through image list
         elif event.type == 'WHEELUPMOUSE':
@@ -435,6 +437,8 @@ Mousewheel to select image"""
         region = context.region
 
         self.mode = persistent_settings['mode']
+        if self.mode == 'SCALE' and rv3d.view_perspective == 'CAMERA':
+            self.mode = 'TRANSLATE'
         self.transform_all = persistent_settings['transform_all']
         self.constrain_x = False
         self.constrain_y = False
