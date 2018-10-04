@@ -37,8 +37,7 @@ from mathutils import Vector
 # perspective
 
 persistent_settings = {'active_image': 0,
-                       'transform_all': False,
-                       'mode': 'TRANSLATE'}
+                       'transform_all': False}
 
 
 def get_view_orientation_from_quaternion(view_quat):
@@ -187,10 +186,6 @@ Mousewheel to select image"""
                 rv3d,
                 (event.mouse_region_x, event.mouse_region_y),
                 Vector()))
-        initial_mouse_location_2d = (
-            space_to_view_vector(
-                self.camera_orientation,
-                self.initial_mouse_location_3d))
 
         if self.transform_all:
             images = self.background_images
@@ -208,169 +203,173 @@ Mousewheel to select image"""
         except:
             numeric_input = None
 
-        for i_i, i_d in enumerate(images):
-            pivot_point_image = pivot_point.copy()
-            pivot_point_image.y *= i_d['width'] / i_d['height']
+        help_string  = 'Confirm: (Enter/LMB), '
+        help_string += 'Cancel: (Esc/RMB), '
+        help_string += 'Choose Image: (Mousewheel), '
+        help_string += 'Transform All: (A), '
+        help_string += 'Move: (G), '
+        help_string += 'Rotate: (R)'
+        if self.view_perspective == 'ORTHO':
+            help_string += ', Scale: (S)'
+        help_string += ', Constrain to axis: (X/Y)'
 
-            help_string  = ', Confirm: (Enter/LMB)'
-            help_string += ', Cancel: (Esc/RMB)'
-            help_string += ', Choose Image: (Mousewheel)'
-            help_string += ', Transform All: (A)'
-            help_string += ', Move: (G)'
-            help_string += ', Rotate: (R)'
-            if self.view_perspective == 'ORTHO':
-                help_string += ', Scale: (S)'
-            help_string += ', Constrain to axis: (X/Y)'
+        if self.mode != 'NONE':
+            for i_i, i_d in enumerate(images):
+                pivot_point_image = pivot_point.copy()
+                pivot_point_image.y *= i_d['width'] / i_d['height']
 
-            initial_mouse_vector = initial_mouse_location_2d - pivot_point
-            current_mouse_vector = space_to_view_vector(
-                self.camera_orientation,
-                mouse_location_3d) - pivot_point
+                initial_mouse_vector = self.initial_mouse_location_2d - pivot_point
+                current_mouse_vector = space_to_view_vector(
+                    self.camera_orientation,
+                    mouse_location_3d) - pivot_point
 
-            if self.mode == 'TRANSLATE':
+                if self.mode == 'TRANSLATE':
 
-                if self.numeric_input_string and numeric_input is not None:
-                    offset = Vector((numeric_input, numeric_input))
-                    print(offset)
-                else:
-                    # Get mouse differential in view space
-                    offset = space_to_view_vector(
-                        self.camera_orientation,
-                        (mouse_location_3d - self.initial_mouse_location_3d))
+                    if self.numeric_input_string and numeric_input is not None:
+                        offset = Vector((numeric_input, numeric_input))
+                        print(offset)
+                    else:
+                        # Get mouse differential in view space
+                        offset = space_to_view_vector(
+                            self.camera_orientation,
+                            (mouse_location_3d - self.initial_mouse_location_3d))
 
-                    # Snap mode
-                    if event.ctrl:
-                        offset.x //= 1
-                        offset.y //= 1
+                        # Snap mode
+                        if event.ctrl:
+                            offset.x //= 1
+                            offset.y //= 1
 
-                    # Precision mode
-                    if event.shift:
-                        offset *= 0.1
+                        # Precision mode
+                        if event.shift:
+                            offset *= 0.1
 
-                # Offset is based a factor of width or height
-                offset.y *= i_d['width'] / i_d['height']
+                    # Offset is based a factor of width or height
+                    offset.y *= i_d['width'] / i_d['height']
 
-                # Axis constraint
-                if self.constrain_x:
-                    offset.y = 0.0
-                if self.constrain_y:
-                    offset.x = 0.0
+                    # Axis constraint
+                    if self.constrain_x:
+                        offset.y = 0.0
+                    if self.constrain_y:
+                        offset.x = 0.0
 
-                # Apply translation to background image
-                i_d['image'].offset_x, i_d['image'].offset_y = (
-                    i_d['initial_location'] + offset)
-                context.area.header_text_set(
-                    "Dx: %.4f Dy: %.4f" % tuple(offset) + help_string)
+                    # Apply translation to background image
+                    i_d['image'].offset_x, i_d['image'].offset_y = (
+                        i_d['initial_location'] + offset)
+                    context.area.header_text_set(
+                        "Dx: %.4f Dy: %.4f, " % tuple(offset) + help_string)
 
-            elif self.mode == 'ROTATE':
-                if self.numeric_input_string and numeric_input is not None:
-                    rotation_offset = radians(numeric_input)
-                else:
-                    # Get angles in view space
-                    rotation_offset = initial_mouse_vector.angle_signed(
-                        current_mouse_vector)
+                elif self.mode == 'ROTATE':
+                    if self.numeric_input_string and numeric_input is not None:
+                        rotation_offset = radians(numeric_input)
+                    else:
+                        # Get angles in view space
+                        rotation_offset = initial_mouse_vector.angle_signed(
+                            current_mouse_vector)
 
-                    # Add whole turns to avoid precision mode popping
-                    if (self.previous_rotation_offset < 0
-                            and rotation_offset > 0
-                            and abs(rotation_offset) > pi/2):
-                        self.revolutions -= 1
-                    elif (self.previous_rotation_offset > 0
-                            and rotation_offset < 0
-                            and abs(rotation_offset) > pi/2):
-                        self.revolutions += 1
+                        # Add whole turns to avoid precision mode popping
+                        if (self.previous_rotation_offset < 0
+                                and rotation_offset > 0
+                                and abs(rotation_offset) > pi/2):
+                            self.revolutions -= 1
+                        elif (self.previous_rotation_offset > 0
+                                and rotation_offset < 0
+                                and abs(rotation_offset) > pi/2):
+                            self.revolutions += 1
 
-                    self.previous_rotation_offset = rotation_offset
-                    rotation_offset += self.revolutions * 2*pi
+                        self.previous_rotation_offset = rotation_offset
+                        rotation_offset += self.revolutions * 2*pi
 
-                    # Snap mode
-                    if event.ctrl:
-                        rotation_offset = (
-                            radians((degrees(rotation_offset) // 5) * 5))
-                    # Precision mode
-                    if event.shift:
-                        rotation_offset *= 0.1
+                        # Snap mode
+                        if event.ctrl:
+                            rotation_offset = (
+                                radians((degrees(rotation_offset) // 5) * 5))
+                        # Precision mode
+                        if event.shift:
+                            rotation_offset *= 0.1
 
-                # Translate image in a circular path around 3D cursor
-                if ((context.space_data.pivot_point in (
-                        'CURSOR', 'BOUNDING_BOX_CENTER',
-                        'MEDIAN_POINT', 'ACTIVE_ELEMENT')
-                        or (context.space_data.pivot_point == 'ACTIVE_ELEMENT'
-                            and i_i != self.active_image))
-                        and (i_d['initial_location_view']
-                             - pivot_point).length_squared != 0):
-                    initial_angle = (
-                        i_d['initial_location_view']
-                        - pivot_point).angle_signed(Vector((1.0, 0.0)))
-                    rotation_distance = (
-                        i_d['initial_location_view']
-                        - pivot_point).length
-                    offset = pivot_point_image
-                    offset.x += (
-                        cos(initial_angle - rotation_offset)
-                        * rotation_distance)
-                    offset.y += (
-                        sin(initial_angle - rotation_offset)
-                        * rotation_distance
-                        * i_d['width']
-                        / i_d['height'])
-                    i_d['image'].offset_x, i_d['image'].offset_y = offset
-
-                # Apply rotation to background image
-                i_d['image'].rotation = (
-                    i_d['initial_rotation'] + rotation_offset)
-                context.area.header_text_set(
-                    "Rot: %.2f°" % degrees(rotation_offset) + help_string)
-
-            elif self.mode == 'SCALE':
-                if self.numeric_input_string and numeric_input is not None:
-                    scale_offset = abs(numeric_input)
-                else:
-                    scale_offset = ((
-                        space_to_view_vector(
-                            self.camera_orientation, mouse_location_3d)
-                        - pivot_point).length
-                        / (initial_mouse_location_2d - pivot_point).length)
-
-                    # Snap mode
-                    if event.ctrl:
-                        scale_offset = ((scale_offset * 10) // 1) / 10
-                    # Precision mode
-                    if event.shift:
-                        scale_offset = scale_offset * 0.5 + 0.5
-
-                    # Detect flip (mouse has crossed line perpendicular
-                    # to the pivot-initial mouse line)
-                    mouse_cross_product = (
-                        initial_mouse_vector * current_mouse_vector)
-                    # Cross products have the different signs
-                    # From https://stackoverflow.com/a/1986776/4561348
-                    if (copysign(1, mouse_cross_product)
-                            != copysign(1, self.previous_mouse_cp)):
-                        i_d['image'].use_flip_x = not i_d['image'].use_flip_x
-                        i_d['image'].use_flip_y = not i_d['image'].use_flip_y
-                        self.previous_mouse_cp = mouse_cross_product
-
-                    flip = -1.0 if mouse_cross_product < 0 else 1.0
-
-                    # Translate image along a line
-                    # between 3D cursor and original location
-                    if (context.space_data.pivot_point in ('CURSOR',
-                                                           'BOUNDING_BOX_CENTER',
-                                                           'MEDIAN_POINT')
+                    # Translate image in a circular path around 3D cursor
+                    if ((context.space_data.pivot_point in (
+                            'CURSOR', 'BOUNDING_BOX_CENTER',
+                            'MEDIAN_POINT', 'ACTIVE_ELEMENT')
                             or (context.space_data.pivot_point == 'ACTIVE_ELEMENT'
-                                and i_i != self.active_image)):
-                        offset = (
+                                and i_i != self.active_image))
+                            and (i_d['initial_location_view']
+                                 - pivot_point).length_squared != 0):
+                        initial_angle = (
                             i_d['initial_location_view']
-                            + (pivot_point - i_d['initial_location_view'])
-                            * (1-scale_offset * flip))
-                        offset.y *= i_d['width'] / i_d['height']
+                            - pivot_point).angle_signed(Vector((1.0, 0.0)))
+                        rotation_distance = (
+                            i_d['initial_location_view']
+                            - pivot_point).length
+                        offset = pivot_point_image
+                        offset.x += (
+                            cos(initial_angle - rotation_offset)
+                            * rotation_distance)
+                        offset.y += (
+                            sin(initial_angle - rotation_offset)
+                            * rotation_distance
+                            * i_d['width']
+                            / i_d['height'])
                         i_d['image'].offset_x, i_d['image'].offset_y = offset
 
-                # Apply scale to background image
-                i_d['image'].size = i_d['initial_size'] * scale_offset
-                context.area.header_text_set(
-                    "Scale: %.4f" % scale_offset + help_string)
+                    # Apply rotation to background image
+                    i_d['image'].rotation = (
+                        i_d['initial_rotation'] + rotation_offset)
+                    context.area.header_text_set(
+                        "Rot: %.2f°, " % degrees(rotation_offset) + help_string)
+
+                elif self.mode == 'SCALE':
+                    if self.numeric_input_string and numeric_input is not None:
+                        scale_offset = abs(numeric_input)
+                    else:
+                        scale_offset = ((
+                            space_to_view_vector(
+                                self.camera_orientation, mouse_location_3d)
+                            - pivot_point).length
+                            / (self.initial_mouse_location_2d - pivot_point).length)
+
+                        # Snap mode
+                        if event.ctrl:
+                            scale_offset = ((scale_offset * 10) // 1) / 10
+                        # Precision mode
+                        if event.shift:
+                            scale_offset = scale_offset * 0.5 + 0.5
+
+                        # Detect flip (mouse has crossed line perpendicular
+                        # to the pivot-initial mouse line)
+                        mouse_cross_product = (
+                            initial_mouse_vector * current_mouse_vector)
+                        # Cross products have the different signs
+                        # From https://stackoverflow.com/a/1986776/4561348
+                        if (copysign(1, mouse_cross_product)
+                                != copysign(1, self.previous_mouse_cp)):
+                            i_d['image'].use_flip_x = not i_d['image'].use_flip_x
+                            i_d['image'].use_flip_y = not i_d['image'].use_flip_y
+                            self.previous_mouse_cp = mouse_cross_product
+
+                        flip = -1.0 if mouse_cross_product < 0 else 1.0
+
+                        # Translate image along a line
+                        # between 3D cursor and original location
+                        if (context.space_data.pivot_point in ('CURSOR',
+                                                               'BOUNDING_BOX_CENTER',
+                                                               'MEDIAN_POINT')
+                                or (context.space_data.pivot_point == 'ACTIVE_ELEMENT'
+                                    and i_i != self.active_image)):
+                            offset = (
+                                i_d['initial_location_view']
+                                + (pivot_point - i_d['initial_location_view'])
+                                * (1-scale_offset * flip))
+                            offset.y *= i_d['width'] / i_d['height']
+                            i_d['image'].offset_x, i_d['image'].offset_y = offset
+
+                    # Apply scale to background image
+                    i_d['image'].size = i_d['initial_size'] * scale_offset
+                    context.area.header_text_set(
+                        "Scale: %.4f, " % scale_offset + help_string)
+
+        else:
+            context.area.header_text_set(help_string)
 
         # Draw line from the mouse cursor
         pivot_point_region = view_to_region_vector(
@@ -397,8 +396,11 @@ Mousewheel to select image"""
             self.constrain_y = not self.constrain_y
             self.update(context, event)
 
+        if self.mode == 'NONE' and event.type in ('G', 'R', 'S'):
+            self.set_initial_view(context, event)
+
         # Mode switch events
-        elif event.type == 'R' and event.value == 'PRESS':
+        if event.type == 'R' and event.value == 'PRESS':
             self.mode = 'ROTATE'
             self.reset()
             self.update(context, event)
@@ -462,7 +464,6 @@ Mousewheel to select image"""
             bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
             persistent_settings['active_image'] = self.active_image
             persistent_settings['transform_all'] = self.transform_all
-            persistent_settings['mode'] = self.mode
             return {'FINISHED'}
 
         # Cancel and reset
@@ -494,9 +495,7 @@ Mousewheel to select image"""
         rv3d = context.region_data
         region = context.region
 
-        self.mode = persistent_settings['mode']
-        if self.mode == 'SCALE' and rv3d.view_perspective == 'CAMERA':
-            self.mode = 'TRANSLATE'
+        self.mode = 'NONE'
         self.transform_all = persistent_settings['transform_all']
         self.constrain_x = False
         self.constrain_y = False
@@ -511,27 +510,16 @@ Mousewheel to select image"""
         self.region_offset_x = 0
         self.region_offset_y = 0
 
-        self.initial_mouse = Vector((
-            event.mouse_region_x,
-            event.mouse_region_y))
-        self.initial_mouse_location_3d = (
-            view3d_utils.region_2d_to_location_3d(
-                region, rv3d, self.initial_mouse, Vector()))
-
-        self.valid_images = []
-
         self.previous_rotation_offset = 0.0
         self.revolutions = 0
 
         self.previous_mouse_cp = 1.0
 
-        self.draw_start = self.initial_mouse
-        self.draw_end = self.initial_mouse
-
         self.numeric_input_string = ''
         self.numeric_input_divide = False
         self.numeric_input_opposite = False
 
+        self.valid_images = []
         # Get currently visible images
         for background_image in context.space_data.background_images:
             image_orientation = background_image.view_axis
@@ -560,6 +548,23 @@ Mousewheel to select image"""
             self.report({'WARNING'}, 'No background image found.')
             return {'CANCELLED'}
 
+    def set_initial_view(self, context, event):
+        rv3d = context.region_data
+        region = context.region
+        self.initial_mouse = Vector((
+            event.mouse_region_x,
+            event.mouse_region_y))
+        self.initial_mouse_location_3d = (
+            view3d_utils.region_2d_to_location_3d(
+                region, rv3d, self.initial_mouse, Vector()))
+
+        self.initial_mouse_location_2d = (
+            space_to_view_vector(
+                self.camera_orientation,
+                self.initial_mouse_location_3d))
+
+        self.draw_start = self.initial_mouse
+        self.draw_end = self.initial_mouse
 
 def background_image_transform_panel(self, context):
     layout = self.layout
