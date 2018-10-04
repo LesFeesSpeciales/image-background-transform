@@ -28,7 +28,7 @@ bl_info = {
 
 import bpy
 from bpy_extras import view3d_utils
-from bpy.props import FloatVectorProperty
+from bpy.props import StringProperty
 import bgl
 from math import radians, degrees, pi, cos, sin, copysign
 from mathutils import Vector
@@ -141,6 +141,8 @@ Mousewheel to select image"""
     bl_idname = "view3d.background_image_transform"
     bl_label = "Transform Background Image"
     bl_options = {'REGISTER', 'UNDO', 'GRAB_CURSOR', 'BLOCKING'}
+
+    mode = StringProperty(default='PREVIOUS')
 
     @classmethod
     def poll(self, context):
@@ -494,7 +496,8 @@ Mousewheel to select image"""
         rv3d = context.region_data
         region = context.region
 
-        self.mode = persistent_settings['mode']
+        if self.mode == 'PREVIOUS':
+            self.mode = persistent_settings['mode']
         if self.mode == 'SCALE' and rv3d.view_perspective == 'CAMERA':
             self.mode = 'TRANSLATE'
         self.transform_all = persistent_settings['transform_all']
@@ -563,7 +566,12 @@ Mousewheel to select image"""
 
 def background_image_transform_panel(self, context):
     layout = self.layout
-    layout.operator("view3d.background_image_transform")
+    col = layout.column(align=True)
+    row = col.row(align=True)
+    row.operator("view3d.background_image_transform")
+    row.operator("view3d.background_image_transform", text='', icon='MAN_TRANS').mode = 'TRANSLATE'
+    row.operator("view3d.background_image_transform", text='', icon='MAN_ROT').mode = 'ROTATE'
+    row.operator("view3d.background_image_transform", text='', icon='MAN_SCALE').mode = 'SCALE'
 
 
 addon_keymaps = []
