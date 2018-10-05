@@ -1,6 +1,7 @@
 # Image background transform
 Transform 3D View background images using G, R, S, similar to Blender transform tools.
 * `SHIFT` + `ALT` + `B` to start the operator, then
+* `G`, `R`, `S`, to select transform mode (translate, rotate, scale, respectively)
 * `A` to transform all images at once
 * `CTRL` to snap to closest values
 * `X`/`Y` to constrain to axis
